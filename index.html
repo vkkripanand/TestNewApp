@@ -36,6 +36,13 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ code })
                 });
+               
+                if (res.status === 401) {
+                   // session expired
+                   localStorage.removeItem("auth_token");
+                   window.location.href = "https://users.vividsol.in";
+                   return;
+                }
 
                 if (!res.ok) {
                     document.body.innerHTML = "Invalid or expired session";
