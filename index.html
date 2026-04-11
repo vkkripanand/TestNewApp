@@ -275,7 +275,7 @@
             logout() {
                 clearInterval(this.timer);
                 localStorage.clear();
-                window.location.href = "https://users.vividsol.in/SDRegistration";
+                window.location.href = "https://users.vividsol.in/Login";
             }
         };
 
@@ -307,7 +307,7 @@
 
                 if (res.status === 401) {
                     localStorage.removeItem("auth_token");
-                    window.location.href = "https://users.vividsol.in/SDRegistration";
+                    window.location.href = "https://users.vividsol.in/Login";
                     return;
                 }
 
