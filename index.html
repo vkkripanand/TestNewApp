@@ -6,32 +6,157 @@
 </head>
 <body>
 
-    <div id="app" style="display: block;">
-        <h1> THIS IS MY APP USING SSO FROM ANOTHER SITE</h1>
+    <style>
+        :root {
+            --primary: #0d6efd;
+            --danger: #dc3545;
+            --gray: #6c757d;
+            --light: #f8f9fa;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+
+        /* Container */
+        .container {
+            max-width: 800px;
+            margin: 80px auto;
+            padding: 0 20px;
+        }
+
+        /* Navbar */
+        .navbar {
+            background: #212529;
+            color: white;
+            padding: 1rem;
+            position: fixed;
+            top: 0;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,.1);
+        }
+
+        /* Cards */
+        .card {
+            background: white;
+            border-radius: 8px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid #dee2e6;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: opacity 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-outline {
+            border: 1px solid var(--gray);
+            background: transparent;
+        }
+
+        .btn:hover {
+            opacity: 0.8;
+        }
+
+        /* Status Indicators */
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .bg-success {
+            background: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .bg-warning {
+            background: #fff3cd;
+            color: #664d03;
+        }
+    </style>
+
+
+    <nav class="navbar">
+        <strong>My New App</strong>
+        <div id="session-status">
+            <span class="badge bg-success" id="status-text">Session Active</span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>Dashboard</h2>
+            <p>You are currently logged in. Your session will automatically refresh as long as you are active.</p>
+            <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+            <div id="SD-USER-META" class="bg-dark text-white">
+            </div>
+            <div id="SD-EXPIRY-META" class="bg-info">
+            </div>
+            <div id="SD-ERROR-META" class="bg-warning text-white">
+            </div>
+
+            <div style="display: flex; padding:15px; justify-content: space-between; align-items: center;">
+                <button onclick="SessionManager.logout()" class="btn btn-outline">Logout Now</button>
+            </div>
+        </div>
     </div>
-    <div class="user-profile-info" id="SD-USER-META">
-        CUST ID:
-    </div>
+
+
     <script>
 
-        let inactivityTimer;
-        let refreshTimer;
+        // Configuration
+        const INACTIVITY_LIMIT = 10 * 60 * 1000;   // 10 Minutes
+        const REFRESH_THRESHOLD = 1 * 60 * 1000;   // 1 Minutes before expiry
+        const CHECK_INTERVAL = 30000;              // Run check every 30 seconds
 
-        const INACTIVITY_LIMIT = 2 * 60 * 1000; // 15 minutes
-        const REFRESH_THRESHOLD = 1 * 60 * 1000; // 10 minutes
+        async function loadUser() {
 
-        function startAuthTimers() {
-            // 1. Start the Refresh Token timer
-            scheduleTokenRefresh();
+            const token = localStorage.getItem("auth_token");
 
-            // 2. Start the Inactivity timer
-            resetInactivityTimer();
+            if (!token) {
+                document.getElementById('SD-ERROR-META').innerHTML = "Unauthorized";
+                return;
+            }
 
-            // 3. Listen for user activity
-            const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
-            activityEvents.forEach(event => {
-                window.addEventListener(event, resetInactivityTimer);
+            const res = await fetch("https://users.vividsol.in/api/Auth/GetMe", {
+                method: "GET",
+                headers: {
+                    "Authorization": "Bearer " + token
+                }
             });
+
+            if (!res.ok) {
+                document.body.innerHTML = "Session expired";
+                return;
+            }
+
+            const data = await res.json();
+
+            const userId = data.userId;
+            console.log("Logged in user:", userId);
+            document.getElementById('SD-USER-META').innerHTML = userId;
+        
+            return userId;
         }
 
         function getTokenExpirationDate(token) {
@@ -56,83 +181,111 @@
             }
         }
 
-         function scheduleTokenRefresh() {
-            // Clear existing if any
-            if (refreshTimer) clearTimeout(refreshTimer);
+        const SessionManager = {
 
-            refreshTimer = setTimeout(async () => {
-                console.log("Attempting to refresh token...");
+            timer: null,
+
+            init() {
+                this.setupActivityListeners();
+                this.startHeartbeat();
+                this.recordActivity();
+            },
+
+            setupActivityListeners() {
+                const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'];
+                events.forEach(e =>
+                    window.addEventListener(e, () => this.recordActivity())
+                );
+            },
+
+            recordActivity() {
+                localStorage.setItem('lastActive', Date.now().toString());
+            },
+
+            startHeartbeat() {
+                this.timer = setInterval(() => this.checkSession(), CHECK_INTERVAL);
+            },
+
+            async checkSession() {
+                const token = localStorage.getItem('auth_token');
+                const lastActive = parseInt(localStorage.getItem('lastActive') || "0");
+                const now = Date.now();
+
+                if (!token) return;
+
+                if (now - lastActive > INACTIVITY_LIMIT) {
+                    console.log("Session expired due to inactivity.");
+                    this.logout();
+                    return;
+                }
+
                 try {
-                    await refreshTokenApiCall();
-                    // Re-schedule the next refresh after success
-                    scheduleTokenRefresh();
+                    const expiryDate = getTokenExpirationDate(token);
+                    const timeUntilExpiry = expiryDate - now;
+
+                    if (timeUntilExpiry < REFRESH_THRESHOLD) {
+                        console.log("Token expiring soon, attempting refresh...");
+                        await this.performRefresh();
+                    }
                 } catch (err) {
-                    console.error("Refresh failed", err);
-                    logout();
+                    console.error("Session check failed:", err);
+                    this.logout();
                 }
-            }, REFRESH_THRESHOLD);
-        }
+            },
 
-        function resetInactivityTimer() {
-            if (inactivityTimer) clearTimeout(inactivityTimer);
+            async performRefresh() {
+                try {
 
-            inactivityTimer = setTimeout(() => {
-                console.warn("User inactive for 15 minutes. Logging out.");
-                logout();
-            }, INACTIVITY_LIMIT);
-        }
+                    const refreshToken = localStorage.getItem("refresh_token");
+                    const authToken = localStorage.getItem("auth_token");
 
-       async function refreshTokenApiCall() {
-            console.log("User active & token aging. Refreshing...");
-            try {
-                const refreshToken = localStorage.getItem("refresh_token");
-                const authToken = localStorage.getItem("auth_token");
+                    if (!refreshToken) return false;
+                    if (!authToken) return false;
 
-                if (!refreshToken) return false;
+                    const res = await fetch("https://users.vividsol.in/api/auth/Refresh", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json"
+                        },
+                        body: JSON.stringify({ authToken, refreshToken })
+                    });
 
-                const res = await fetch("https://users.vividsol.in/api/auth/Refresh", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({ authToken, refreshToken })
-                });
+                    if (!res.ok) {
+                        console.log("failed refresh")
+                        return false;
+                    }
 
-                if (!res.ok) {
-                    console.log("failed refresh")
-                    return false;
+                    const data = await res.json();
+                    
+                    if (data.authToken) {
+                        localStorage.setItem("auth_token", data.authToken);
+                        const expiryDate = getTokenExpirationDate(data.authToken);
+                        document.getElementById('SD-EXPIRY-META').innerHTML = "Refreshed - " + expiryDate;
+                    }
+
+                    if (data.refreshToken) {
+                        localStorage.setItem("refresh_token", data.refreshToken);
+                    }
+
+                } catch (error) {
+                    this.logout();
                 }
+            },
 
-                const data = await res.json();
-
-                localStorage.setItem("auth_token", data.authToken);
-                localStorage.setItem("refresh_token", data.refreshToken);
-
-                return true;
-            } catch (err) {
-                console.error("Refresh failed", err);
+            logout() {
+                clearInterval(this.timer);
+                localStorage.clear();
+                window.location.href = "https://users.vividsol.in/SDRegistration";
             }
-        }
-
-        function forceLogout() {
-            localStorage.clear();
-            window.location.href = 'https://users.vividsol.in/SDRegistration';
-        }
-
-        //// Attach listeners
-        //['mousedown', 'keydown', 'scroll', 'touchstart'].forEach(event => {
-        //    // Use a simple debounce or throttle here if performance is an issue
-        //    document.addEventListener(event, handleActivity, true);
-        //});
+        };
 
         document.addEventListener("DOMContentLoaded", async function () {
 
-            // Initial start
-            //handleActivity();
-
-            startAuthTimers();
+            SessionManager.init();
 
             localStorage.removeItem("auth_token");
+            localStorage.removeItem("refresh_token");
+            localStorage.removeItem("lastActive");
 
             let currentUser = null;
             const urlParams = new URLSearchParams(window.location.hash.replace('#', '?'));
@@ -141,9 +294,10 @@
             const token = localStorage.getItem("auth_token");
 
             if (!code) {
-                document.body.innerHTML = "Unauthorized access";
+                document.getElementById('SD-ERROR-META').innerHTML = "Sorry, but you are not Authorized to use this resource!"
                 return;
             }
+
             try {
                 const res = await fetch("https://users.vividsol.in/api/Auth/exchangecode", {
                     method: "POST",
@@ -152,14 +306,13 @@
                 });
 
                 if (res.status === 401) {
-                    // session expired
                     localStorage.removeItem("auth_token");
                     window.location.href = "https://users.vividsol.in/SDRegistration";
                     return;
                 }
 
                 if (!res.ok) {
-                    document.body.innerHTML = "Invalid or expired session";
+                    document.getElementById('SD-ERROR-META').innerHTML = "Invalid or expired session";
                     return;
                 }
 
@@ -169,64 +322,27 @@
                 localStorage.setItem("auth_token", data.authToken);
                 localStorage.setItem("refresh_token", data.refreshToken);
 
-                // Clean URL (important)
-                history.replaceState(null, "", "/");
-
-                loadApp();
-                initAuth();
                 const expiryDate = getTokenExpirationDate(data.authToken);
-                console.log(`Token expires at: ${expiryDate}`);
+                document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
 
             } catch (e) {
-                document.body.innerHTML = "Authentication failed";
+                document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed";
             }
-        });
 
-        function loadApp() {
-            document.getElementById("app").style.display = "block";
-        }
+            history.replaceState(null, "", "/");
 
-        async function initAuth() {
+            //  document.getElementById("app").style.display = "block";
+
             currentUser = await loadUser();
             console.log(currentUser);
             document.getElementById('SD-USER-META').innerHTML = currentUser;
-        }
-  
-        async function loadUser() {
 
-            const token = localStorage.getItem("auth_token");
+            const expiryDate = getTokenExpirationDate(data.authToken);
+            document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
 
-            if (!token) {
-                document.body.innerHTML = "Unauthorized";
-                return;
-            }
-
-            const res = await fetch("https://users.vividsol.in/api/Auth/GetMe", {
-                method: "GET",
-                headers: {
-                    "Authorization": "Bearer " + token
-                }
-            });
-
-            if (!res.ok) {
-                document.body.innerHTML = "Session expired";
-                return;
-            }
-
-            const data = await res.json();
-
-            // Store in constant (runtime use)
-
-            const userId = data.userId;
-            console.log("Logged in user:", userId);
-            document.getElementById("app").style.display = "block";
-
-            return userId;
-  
-        }
+        });
 
     </script>
+
 </body>
-
-
 </html>
