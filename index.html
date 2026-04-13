@@ -135,7 +135,7 @@
                 return;
             }
 
-            const res = await fetch("https://localhost:44314/api/Auth/GetMe", {
+            const res = await fetch("https://users.vividsol.in/api/Auth/GetMe", {
                 method: "GET",
                 headers: {
                     "Authorization": "Bearer " + token
@@ -239,7 +239,7 @@
                     if (!refreshToken) return false;
                     if (!authToken) return false;
 
-                    const res = await fetch("https://localhost:44314/api/auth/Refresh", {
+                    const res = await fetch("https://users.vividsol.in/api/auth/Refresh", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -272,7 +272,7 @@
             logout() {
                 clearInterval(this.timer);
                 localStorage.clear();
-                window.location.href = "https://localhost:44314/Logout";
+                window.location.href = "https://users.vividsol.in/Logout";
             }
         };
 
@@ -312,7 +312,7 @@
 
         async function exchangeCodeForToken(code) {
             try {
-                const res = await fetch("https://localhost:44314/api/Auth/exchangecode", {
+                const res = await fetch("https://users.vividsol.in/api/Auth/exchangecode", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ code })
@@ -320,7 +320,7 @@
 
                 if (res.status === 401) {
                     localStorage.removeItem("auth_token");
-                    window.location.href = "https://localhost:44314/Logout";
+                    window.location.href = "https://users.vividsol.in/Logout";
                     return;
                 }
 
