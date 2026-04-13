@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title></title>
+    <title>User Dashboard</title>
 </head>
 <body>
 
@@ -94,7 +94,6 @@
         }
     </style>
 
-
     <nav class="navbar">
         <strong>My New App</strong>
         <div id="session-status">
@@ -121,9 +120,7 @@
         </div>
     </div>
 
-
     <script>
-
         // Configuration
         const INACTIVITY_LIMIT = 5 * 60 * 1000;   // 5 Minutes
         const REFRESH_THRESHOLD = 1 * 60 * 1000;   // 1 Minutes before expiry
@@ -138,7 +135,7 @@
                 return;
             }
 
-            const res = await fetch("https://users.vividsol.in/api/Auth/GetMe", {
+            const res = await fetch("https://localhost:44314/api/Auth/GetMe", {
                 method: "GET",
                 headers: {
                     "Authorization": "Bearer " + token
@@ -155,7 +152,7 @@
             const userId = data.userId;
             console.log("Logged in user:", userId);
             document.getElementById('SD-USER-META').innerHTML = userId;
-        
+
             return userId;
         }
 
@@ -242,7 +239,7 @@
                     if (!refreshToken) return false;
                     if (!authToken) return false;
 
-                    const res = await fetch("https://users.vividsol.in/api/auth/Refresh", {
+                    const res = await fetch("https://localhost:44314/api/auth/Refresh", {
                         method: "POST",
                         headers: {
                             "Content-Type": "application/json"
@@ -256,12 +253,12 @@
                     }
 
                     const data = await res.json();
-                    
+
                     if (data.authToken) {
                         localStorage.setItem("auth_token", data.authToken);
                         const expiryDate = getTokenExpirationDate(data.authToken);
                         document.getElementById('SD-EXPIRY-META').innerHTML = "Refreshed - " + expiryDate;
-                    }
+                     }
 
                     if (data.refreshToken) {
                         localStorage.setItem("refresh_token", data.refreshToken);
@@ -275,31 +272,47 @@
             logout() {
                 clearInterval(this.timer);
                 localStorage.clear();
-                window.location.href = "https://users.vividsol.in/Login";
+                window.location.href = "https://localhost:44314/Logout";
             }
         };
 
         document.addEventListener("DOMContentLoaded", async function () {
 
-            SessionManager.init();
-
-            //localStorage.removeItem("auth_token");
-            //localStorage.removeItem("refresh_token");
-            //localStorage.removeItem("lastActive");
-
             let currentUser = null;
             const urlParams = new URLSearchParams(window.location.hash.replace('#', '?'));
             const code = urlParams.get("code");
 
-            const token = localStorage.getItem("auth_token");
+            let token = localStorage.getItem("auth_token");
 
-            if (!code) {
-                document.getElementById('SD-ERROR-META').innerHTML = "Sorry, but you are not Authorized to use this resource!"
-                return;
-            }
+            history.replaceState(null, "", "/");
+            window.history.replaceState({}, document.title, "/");
+            document.title = "User Dashboard";
 
+            token = await exchangeCodeForToken(code);
+
+            SessionManager.init();
+
+            currentUser = await loadUser();
+            console.log(currentUser);
+            document.getElementById('SD-USER-META').innerHTML = currentUser;
+
+            const expiryDate = getTokenExpirationDate(token);
+            document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
+
+        });
+
+        function isTokenExpired(token) {
             try {
-                const res = await fetch("https://users.vividsol.in/api/Auth/exchangecode", {
+                const expiryDate = getTokenExpirationDate(token);
+                return expiryDate < Date.now();
+            } catch (e) {
+                return true;
+            }
+        }
+
+        async function exchangeCodeForToken(code) {
+            try {
+                const res = await fetch("https://localhost:44314/api/Auth/exchangecode", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ code })
@@ -307,7 +320,7 @@
 
                 if (res.status === 401) {
                     localStorage.removeItem("auth_token");
-                    window.location.href = "https://users.vividsol.in/Login";
+                    window.location.href = "https://localhost:44314/Logout";
                     return;
                 }
 
@@ -322,23 +335,12 @@
                 localStorage.setItem("auth_token", data.authToken);
                 localStorage.setItem("refresh_token", data.refreshToken);
 
-                const expiryDate = getTokenExpirationDate(data.authToken);
-                document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
+                return data.authToken;
 
             } catch (e) {
                 document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed";
             }
-
-            history.replaceState(null, "", "/");
-
-            //  document.getElementById("app").style.display = "block";
-
-            currentUser = await loadUser();
-            console.log(currentUser);
-            document.getElementById('SD-USER-META').innerHTML = currentUser;
-
-        });
-
+        }
     </script>
 
 </body>
