@@ -321,7 +321,7 @@
                 SessionManager.init();
     
             } catch (e) {
-                document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed";
+                document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed - " + e.message;
             }
            
         });
