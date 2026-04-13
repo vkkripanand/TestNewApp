@@ -94,6 +94,7 @@
         }
     </style>
 
+
     <nav class="navbar">
         <strong>My New App</strong>
         <div id="session-status">
@@ -272,7 +273,7 @@
             logout() {
                 clearInterval(this.timer);
                 localStorage.clear();
-                window.location.href = "https://users.vividsol.in/Logout";
+                window.location.href = "https://localhost:44314/Logout";
             }
         };
 
@@ -281,16 +282,11 @@
             let currentUser = null;
             const urlParams = new URLSearchParams(window.location.hash.replace('#', '?'));
             const code = urlParams.get("code");
-    
+           
             history.replaceState(null, "", "/");
             window.history.replaceState({}, document.title, "/");
             document.title = "User Dashboard";
 
-            await exchangeCodeForToken(code);
-
-          });
-
-        async function exchangeCodeForToken(code) {
             try {
                 const res = await fetch("https://users.vividsol.in/api/Auth/exchangecode", {
                     method: "POST",
@@ -314,20 +310,21 @@
                 // Store token
                 localStorage.setItem("auth_token", data.authToken);
                 localStorage.setItem("refresh_token", data.refreshToken);
-                
-                const expiryDate = getTokenExpirationDate(data.authToken);
-                document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
-
-                 SessionManager.init();
 
                 currentUser = await loadUser();
                 console.log(currentUser);
                 document.getElementById('SD-USER-META').innerHTML = currentUser;
-                
+           
+                const expiryDate = getTokenExpirationDate(token);
+                document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
+
+                SessionManager.init();
+    
             } catch (e) {
                 document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed";
             }
-        }
+           
+        });
     </script>
 
 </body>
