@@ -281,34 +281,14 @@
             let currentUser = null;
             const urlParams = new URLSearchParams(window.location.hash.replace('#', '?'));
             const code = urlParams.get("code");
-
-            let token = localStorage.getItem("auth_token");
-
+    
             history.replaceState(null, "", "/");
             window.history.replaceState({}, document.title, "/");
             document.title = "User Dashboard";
 
-            token = await exchangeCodeForToken(code);
+            await exchangeCodeForToken(code);
 
-            SessionManager.init();
-
-            currentUser = await loadUser();
-            console.log(currentUser);
-            document.getElementById('SD-USER-META').innerHTML = currentUser;
-
-            const expiryDate = getTokenExpirationDate(token);
-            document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
-
-        });
-
-        function isTokenExpired(token) {
-            try {
-                const expiryDate = getTokenExpirationDate(token);
-                return expiryDate < Date.now();
-            } catch (e) {
-                return true;
-            }
-        }
+          });
 
         async function exchangeCodeForToken(code) {
             try {
@@ -334,9 +314,16 @@
                 // Store token
                 localStorage.setItem("auth_token", data.authToken);
                 localStorage.setItem("refresh_token", data.refreshToken);
+                
+                const expiryDate = getTokenExpirationDate(data.authToken);
+                document.getElementById('SD-EXPIRY-META').innerHTML = expiryDate;
 
-                return data.authToken;
+                 SessionManager.init();
 
+                currentUser = await loadUser();
+                console.log(currentUser);
+                document.getElementById('SD-USER-META').innerHTML = currentUser;
+                
             } catch (e) {
                 document.getElementById('SD-ERROR-META').innerHTML = "Authentication failed";
             }
